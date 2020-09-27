@@ -32,90 +32,17 @@ pub struct Rcc {
 /// Built-in high speed clock frequency
 pub const HSI: u32 = 16_000_000; // Hz
 
-#[cfg(any(
-    feature = "stm32f401",
-    feature = "stm32f405",
-    feature = "stm32f407",
-    feature = "stm32f410",
-    feature = "stm32f411",
-    feature = "stm32f412",
-    feature = "stm32f413",
-    feature = "stm32f415",
-    feature = "stm32f417",
-    feature = "stm32f423",
-    feature = "stm32f427",
-    feature = "stm32f429",
-    feature = "stm32f437",
-    feature = "stm32f439",
-    feature = "stm32f469",
-    feature = "stm32f479"
-))]
 /// Minimum system clock frequency
 pub const SYSCLK_MIN: u32 = 24_000_000;
 
-#[cfg(any(feature = "stm32f446"))]
-/// Minimum system clock frequency
-pub const SYSCLK_MIN: u32 = 12_500_000;
-
-#[cfg(feature = "stm32f401")]
 /// Maximum system clock frequency
-pub const SYSCLK_MAX: u32 = 84_000_000;
+pub const SYSCLK_MAX: u32 = 120_000_000;
 
-#[cfg(any(
-    feature = "stm32f405",
-    feature = "stm32f407",
-    feature = "stm32f415",
-    feature = "stm32f417"
-))]
-/// Maximum system clock frequency
-pub const SYSCLK_MAX: u32 = 168_000_000;
-
-#[cfg(any(
-    feature = "stm32f410",
-    feature = "stm32f411",
-    feature = "stm32f412",
-    feature = "stm32f413",
-    feature = "stm32f423"
-))]
-/// Maximum system clock frequency
-pub const SYSCLK_MAX: u32 = 100_000_000;
-
-#[cfg(any(
-    feature = "stm32f427",
-    feature = "stm32f429",
-    feature = "stm32f437",
-    feature = "stm32f439",
-    feature = "stm32f446",
-    feature = "stm32f469",
-    feature = "stm32f479"
-))]
-/// Maximum system clock frequency
-pub const SYSCLK_MAX: u32 = 180_000_000;
-
-#[cfg(any(
-    feature = "stm32f401",
-    feature = "stm32f410",
-    feature = "stm32f411",
-    feature = "stm32f412",
-    feature = "stm32f413",
-    feature = "stm32f423"
-))]
 /// Maximum APB2 peripheral clock frequency
-pub const PCLK2_MAX: u32 = SYSCLK_MAX;
-
-#[cfg(not(any(
-    feature = "stm32f401",
-    feature = "stm32f410",
-    feature = "stm32f411",
-    feature = "stm32f412",
-    feature = "stm32f413",
-    feature = "stm32f423"
-)))]
-/// Maximum APB2 peripheral clock frequency
-pub const PCLK2_MAX: u32 = SYSCLK_MAX / 2;
+pub const PCLK2_MAX: u32 = SYSCLK_MAX / 4;
 
 /// Maximum APB1 peripheral clock frequency
-pub const PCLK1_MAX: u32 = PCLK2_MAX / 2;
+pub const PCLK1_MAX: u32 = PCLK2_MAX / 8;
 
 pub struct CFGR {
     hse: Option<u32>,
@@ -251,27 +178,7 @@ impl CFGR {
     fn flash_setup(sysclk: u32) {
         use crate::stm32::FLASH;
 
-        #[cfg(any(
-            feature = "stm32f401",
-            feature = "stm32f405",
-            feature = "stm32f407",
-            feature = "stm32f410",
-            feature = "stm32f411",
-            feature = "stm32f412",
-            feature = "stm32f415",
-            feature = "stm32f417",
-            feature = "stm32f427",
-            feature = "stm32f429",
-            feature = "stm32f437",
-            feature = "stm32f439",
-            feature = "stm32f446",
-            feature = "stm32f469",
-            feature = "stm32f479"
-        ))]
         let flash_latency_step = 30_000_000;
-
-        #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
-        let flash_latency_step = 25_000_000;
 
         unsafe {
             let flash = &(*FLASH::ptr());
@@ -356,16 +263,8 @@ impl CFGR {
             rcc.cr.modify(|_, w| w.pllon().set_bit());
 
             // Enable voltage regulator overdrive if HCLK is above the limit
-            #[cfg(any(
-                feature = "stm32f427",
-                feature = "stm32f429",
-                feature = "stm32f437",
-                feature = "stm32f439",
-                feature = "stm32f446",
-                feature = "stm32f469",
-                feature = "stm32f479"
-            ))]
-            if hclk > 168_000_000 {
+            #[cfg(any(feature = "TODO",))]
+            if hclk > 120_000_000 {
                 // Enable clock for PWR peripheral
                 rcc.apb1enr.modify(|_, w| w.pwren().set_bit());
 
