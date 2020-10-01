@@ -67,24 +67,7 @@ macro_rules! pins {
     }
 }
 
-#[cfg(any(
-    feature = "stm32f401",
-    feature = "stm32f405",
-    feature = "stm32f407",
-    feature = "stm32f411",
-    feature = "stm32f412",
-    feature = "stm32f413",
-    feature = "stm32f415",
-    feature = "stm32f417",
-    feature = "stm32f423",
-    feature = "stm32f427",
-    feature = "stm32f429",
-    feature = "stm32f437",
-    feature = "stm32f439",
-    feature = "stm32f446",
-    feature = "stm32f469",
-    feature = "stm32f479"
-))]
+#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
 pins! {
     CLK: [PC12<Alternate<AF12>>]
     CMD: [PD2<Alternate<AF12>>]
@@ -92,21 +75,6 @@ pins! {
     D1: [PC9<Alternate<AF12>>]
     D2: [PC10<Alternate<AF12>>]
     D3: [PC11<Alternate<AF12>>]
-}
-
-#[cfg(any(
-    feature = "stm32f411",
-    feature = "stm32f412",
-    feature = "stm32f413",
-    feature = "stm32f423",
-))]
-pins! {
-    CLK: [PB15<Alternate<AF12>>]
-    CMD: [PA6<Alternate<AF12>>]
-    D0: [PB4<Alternate<AF12>>, PB6<Alternate<AF12>>]
-    D1: [PA8<Alternate<AF12>>]
-    D2: [PA9<Alternate<AF12>>]
-    D3: [PB5<Alternate<AF12>>]
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]

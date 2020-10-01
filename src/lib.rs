@@ -13,10 +13,7 @@ pub use embedded_hal as hal;
 pub use nb;
 pub use nb::block;
 
-#[cfg(feature = "stm32f205")]
-pub use stm32f2::stm32f215 as stm32;
-
-#[cfg(feature = "stm32f215")]
+#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
 pub use stm32f2::stm32f215 as stm32;
 
 // Enable use of interrupt macro
@@ -31,8 +28,8 @@ pub mod bb;
 pub mod delay;
 #[cfg(feature = "device-selected")]
 pub mod gpio;
-//#[cfg(feature = "device-selected")]
-//pub mod i2c;
+#[cfg(feature = "device-selected")]
+pub mod i2c;
 #[cfg(all(feature = "usb_fs", any(feature = "stm32f205", feature = "stm32f215",)))]
 pub mod otg_fs;
 #[cfg(all(

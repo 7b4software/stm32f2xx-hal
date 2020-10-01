@@ -1,4 +1,5 @@
 //! # Quadrature Encoder Interface
+// FIXME
 use crate::{
     bb,
     hal::{self, Direction},
