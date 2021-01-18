@@ -64,6 +64,8 @@ device-selected = []
 rt = ["stm32f2/rt"]
 stm32f205 = ["stm32f2/stm32f215", "device-selected"]
 stm32f215 = ["stm32f2/stm32f215", "device-selected"]
+stm32f207 = ["stm32f2/stm32f217", "device-selected"]
+stm32f217 = ["stm32f2/stm32f217", "device-selected"]
 
 usb_fs = ["synopsys-usb-otg", "synopsys-usb-otg/fs"]
 usb_hs = ["synopsys-usb-otg", "synopsys-usb-otg/hs"]
