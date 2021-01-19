@@ -25,8 +25,8 @@ pub use stm32f2::stm32f217 as stm32;
 #[cfg(feature = "rt")]
 pub use crate::stm32::interrupt;
 
-//#[cfg(feature = "device-selected")]
-//pub mod adc;
+#[cfg(feature = "device-selected")]
+pub mod adc;
 #[cfg(feature = "device-selected")]
 pub mod bb;
 #[cfg(feature = "device-selected")]
@@ -35,22 +35,9 @@ pub mod delay;
 pub mod gpio;
 #[cfg(feature = "device-selected")]
 pub mod i2c;
-#[cfg(all(feature = "usb_fs", any(
-    feature = "stm32f205",
-    feature = "stm32f215",
-    feature = "stm32f207",
-    feature = "stm32f217",
-)))]
+#[cfg(all(feature = "usb_fs", feature = "device-selected")))]
 pub mod otg_fs;
-#[cfg(all(
-    any(feature = "usb_hs", docsrs),
-    any(
-        feature = "stm32f205",
-        feature = "stm32f215",
-        feature = "stm32f207",
-        feature = "stm32f217",
-    )
-))]
+#[cfg(all(any(feature = "usb_hs", docsrs), feature = "device-selected"))]
 pub mod otg_hs;
 
 #[cfg(feature = "device-selected")]
@@ -67,11 +54,11 @@ pub mod pwm;
 #[cfg(feature = "device-selected")]
 pub mod rcc;
 #[cfg(feature = "device-selected")]
-//pub mod serial;
-//#[cfg(feature = "device-selected")]
+pub mod serial;
+#[cfg(feature = "device-selected")]
 pub mod signature;
-//#[cfg(feature = "device-selected")]
-//pub mod spi;
+#[cfg(feature = "device-selected")]
+pub mod spi;
 #[cfg(feature = "device-selected")]
 pub mod time;
 #[cfg(feature = "device-selected")]
