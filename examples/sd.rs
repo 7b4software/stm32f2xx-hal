@@ -5,7 +5,7 @@ use cortex_m_rt::entry;
 use cortex_m_semihosting::{hprint, hprintln};
 use panic_semihosting as _;
 
-use stm32f4xx_hal::{
+use stm32f2xx_hal::{
     delay,
     prelude::*,
     sdio::{ClockFreq, Sdio},

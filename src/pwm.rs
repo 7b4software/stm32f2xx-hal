@@ -302,16 +302,10 @@ macro_rules! pwm_2_channels {
                     }
                 }
                 if PINS::C1 {
-                    //NOTE(unsafe) 6 is a valid value to write to oc1m
-                    unsafe {
-                        tim.ccmr1_output().modify(|_, w| w.oc1pe().set_bit().oc1m().bits(6));
-                    }
+                    tim.ccmr1_output().modify(|_, w| w.oc1pe().set_bit().oc1m().bits(6));
                 }
                 if PINS::C2 {
-                    //NOTE(unsafe) 6 is a valid value to write to oc2m
-                    unsafe {
-                        tim.ccmr1_output().modify(|_, w| w.oc2pe().set_bit().oc2m().bits(6));
-                    }
+                    tim.ccmr1_output().modify(|_, w| w.oc2pe().set_bit().oc2m().bits(6));
                 }
 
                 // The reference manual is a bit ambiguous about when enabling this bit is really
@@ -421,11 +415,8 @@ macro_rules! pwm_1_channel {
                     }
                 }
                 if PINS::C1 {
-                    //NOTE(unsafe) 6 is a valid value to write to oc1m
-                    unsafe {
-                        tim.ccmr1_output()
-                            .modify(|_, w| w.oc1pe().set_bit().oc1m().bits(6));
-                    }
+                    tim.ccmr1_output()
+                        .modify(|_, w| w.oc1pe().set_bit().oc1m().bits(6));
                 }
 
                 // The reference manual is a bit ambiguous about when enabling this bit is really

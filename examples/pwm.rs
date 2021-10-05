@@ -7,7 +7,7 @@ use panic_halt as _;
 
 use cortex_m;
 use cortex_m_rt::entry;
-use stm32f4xx_hal::{prelude::*, pwm, stm32};
+use stm32f2xx_hal::{prelude::*, pwm, stm32};
 
 #[entry]
 fn main() -> ! {

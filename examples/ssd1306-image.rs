@@ -15,7 +15,7 @@
 extern crate cortex_m;
 extern crate cortex_m_rt as rt;
 extern crate panic_semihosting;
-extern crate stm32f4xx_hal as hal;
+extern crate stm32f2xx_hal as hal;
 
 use cortex_m_rt::ExceptionFrame;
 use cortex_m_rt::{entry, exception};

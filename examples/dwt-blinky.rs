@@ -11,7 +11,7 @@ use crate::hal::{
 use cortex_m;
 use cortex_m_rt::entry;
 use panic_halt as _;
-use stm32f4xx_hal as hal;
+use stm32f2xx_hal as hal;
 
 #[entry]
 fn main() -> ! {

@@ -937,3 +937,39 @@ gpio!(GPIOF, gpiof, 5, PF, 5, [
     PF14: (pf14, 14, Input<Floating>, exticr4),
     PF15: (pf15, 15, Input<Floating>, exticr4),
 ]);
+
+#[cfg(any(feature = "stm32f205", feature = "stm32f207"))]
+gpio!(GPIOG, gpiog, 6, PG, 6, [
+    PG0: (pg0, 0, Input<Floating>, exticr1),
+    PG1: (pg1, 1, Input<Floating>, exticr1),
+    PG2: (pg2, 2, Input<Floating>, exticr1),
+    PG3: (pg3, 3, Input<Floating>, exticr1),
+    PG4: (pg4, 4, Input<Floating>, exticr2),
+    PG5: (pg5, 5, Input<Floating>, exticr2),
+    PG6: (pg6, 6, Input<Floating>, exticr2),
+    PG7: (pg7, 7, Input<Floating>, exticr2),
+    PG8: (pg8, 8, Input<Floating>, exticr3),
+    PG9: (pg9, 9, Input<Floating>, exticr3),
+    PG10: (pg10, 10, Input<Floating>, exticr3),
+    PG11: (pg11, 11, Input<Floating>, exticr3),
+    PG12: (pg12, 12, Input<Floating>, exticr4),
+    PG13: (pg13, 13, Input<Floating>, exticr4),
+    PG14: (pg14, 14, Input<Floating>, exticr4),
+    PG15: (pg15, 15, Input<Floating>, exticr4),
+]);
+
+#[cfg(any(feature = "stm32f205", feature = "stm32f207"))]
+gpio!(GPIOI, gpioi, 7, PI, 7, [
+    PI0: (pi0, 0, Input<Floating>, exticr1),
+    PI1: (pi1, 1, Input<Floating>, exticr1),
+    PI2: (pi2, 2, Input<Floating>, exticr1),
+    PI3: (pi3, 3, Input<Floating>, exticr1),
+    PI4: (pi4, 4, Input<Floating>, exticr2),
+    PI5: (pi5, 5, Input<Floating>, exticr2),
+    PI6: (pi6, 6, Input<Floating>, exticr2),
+    PI7: (pi7, 7, Input<Floating>, exticr2),
+    PI8: (pi8, 8, Input<Floating>, exticr3),
+    PI9: (pi9, 9, Input<Floating>, exticr3),
+    PI10: (pi10, 10, Input<Floating>, exticr3),
+    PI11: (pi11, 11, Input<Floating>, exticr3),
+]);

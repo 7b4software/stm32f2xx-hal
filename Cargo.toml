@@ -1,7 +1,7 @@
 [package]
 edition = "2018"
 
-authors = ["Mikael Hermansson <mike7b4@pm.me>"]
+authors = ["Mikael <mike7b4@pm.me>"]
 categories = [
     "embedded",
     "hardware-support",
@@ -26,11 +26,11 @@ features = ["stm32f205", "rt", "usb_fs"]
 targets = ["thumbv7em-none-eabihf"]
 
 [dependencies]
-cortex-m = ">=0.6.3,<0.7"
-cortex-m-rt = "0.6.13"
-nb = "1.0"
-rand_core = "0.5.1"
-stm32f2 = "0.12"
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+nb = "1"
+rand_core = "0.6"
+stm32f2 = "0.14"
 synopsys-usb-otg = { version = "0.2", features = ["cortex-m"], optional = true }
 embedded-dma = "0.1"
 

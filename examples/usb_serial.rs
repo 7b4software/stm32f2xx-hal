@@ -6,8 +6,8 @@
 use panic_halt as _;
 
 use cortex_m_rt::entry;
-use stm32f4xx_hal::otg_fs::{UsbBus, USB};
-use stm32f4xx_hal::{prelude::*, stm32};
+use stm32f2xx_hal::otg_fs::{UsbBus, USB};
+use stm32f2xx_hal::{prelude::*, stm32};
 use usb_device::prelude::*;
 
 static mut EP_MEMORY: [u32; 1024] = [0; 1024];

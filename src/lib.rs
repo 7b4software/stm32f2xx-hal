@@ -35,7 +35,7 @@ pub mod delay;
 pub mod gpio;
 #[cfg(feature = "device-selected")]
 pub mod i2c;
-#[cfg(all(feature = "usb_fs", feature = "device-selected")))]
+#[cfg(all(feature = "usb_fs", feature = "device-selected"))]
 pub mod otg_fs;
 #[cfg(all(any(feature = "usb_hs", docsrs), feature = "device-selected"))]
 pub mod otg_hs;

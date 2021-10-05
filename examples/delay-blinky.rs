@@ -8,7 +8,7 @@ extern crate panic_halt; // panic handler
 
 use cortex_m;
 use cortex_m_rt::entry;
-use stm32f4xx_hal as hal;
+use stm32f2xx_hal as hal;
 
 use crate::hal::{prelude::*, stm32};
 

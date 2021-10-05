@@ -13,7 +13,7 @@
 #![no_std]
 #![no_main]
 
-use stm32f4xx_hal as hal;
+use stm32f2xx_hal as hal;
 
 #[cfg(not(debug_assertions))]
 use panic_halt as _;

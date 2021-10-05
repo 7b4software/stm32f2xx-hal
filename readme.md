@@ -18,13 +18,7 @@ selection of the MCU is done by feature gates, typically specified by board
 support crates. Currently supported configurations are:
 
  - stm32f205
- - stm32f215
 
-
-# TODO before release on crates.io
-
- - Fix RCC
- - Fix examples
 
 # Please help improve this (and other stmxxx crates)
 

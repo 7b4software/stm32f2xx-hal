@@ -20,7 +20,7 @@ use embedded_hal::timer::Cancel;
 use hal::timer;
 use hal::timer::Timer;
 use nb;
-use stm32f4xx_hal as hal;
+use stm32f2xx_hal as hal;
 
 use crate::hal::{prelude::*, stm32};
 
