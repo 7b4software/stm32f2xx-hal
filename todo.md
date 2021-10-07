@@ -11,5 +11,5 @@ Most of the pinouts should be compatible with stm32f207 and stm32f215.
  - [ ] Fix RCC
  - [ ] Fix examples
  - [ ] Support more than stmf205
-
+ - [ ] Update gpio to use the new gpio API
 

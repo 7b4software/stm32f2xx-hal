@@ -5,21 +5,22 @@ use crate::bb;
 use embedded_hal::spi;
 pub use embedded_hal::spi::{Mode, Phase, Polarity};
 
-#[cfg(any(feature = "stm32f205",))]
+#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
 use crate::stm32::{spi1, RCC, SPI1, SPI2, SPI3};
 
-#[cfg(any(feature = "stm32f205",))]
+#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
 use crate::gpio::gpioa::{PA5, PA6, PA7};
-#[cfg(any(feature = "stm32f205",))]
+
+#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
 use crate::gpio::gpiob::{PB10, PB13, PB14, PB15, PB3, PB4, PB5};
 
-#[cfg(any(feature = "stm32f205",))]
+#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
 use crate::gpio::gpioc::{PC10, PC11, PC12, PC2, PC3};
 
-#[cfg(any(feature = "stm32f205",))]
+#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
 use crate::gpio::gpioi::{PI1, PI2, PI3};
 
-#[cfg(any(feature = "stm32f205",))]
+#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
 use crate::gpio::{Alternate, AF5, AF6};
 
 use crate::rcc::Clocks;

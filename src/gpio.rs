@@ -358,16 +358,16 @@ macro_rules! gpio {
                 let offset2 = 4 * index;
                 unsafe {
                     if offset2 < 32 {
-                        &(*$GPIOX::ptr()).afrl.modify(|r, w| {
+                        (*$GPIOX::ptr()).afrl.modify(|r, w| {
                             w.bits((r.bits() & !(0b1111 << offset2)) | (mode << offset2))
                         });
                     } else {
                         let offset2 = offset2 - 32;
-                        &(*$GPIOX::ptr()).afrh.modify(|r, w| {
+                        (*$GPIOX::ptr()).afrh.modify(|r, w| {
                             w.bits((r.bits() & !(0b1111 << offset2)) | (mode << offset2))
                         });
                     }
-                    &(*$GPIOX::ptr()).moder.modify(|r, w| {
+                    (*$GPIOX::ptr()).moder.modify(|r, w| {
                         w.bits((r.bits() & !(0b11 << offset)) | (0b10 << offset))
                     });
                 }
@@ -576,10 +576,10 @@ macro_rules! gpio {
                     pub fn into_floating_input(self) -> $PXi<Input<Floating>> {
                         let offset = 2 * $i;
                         unsafe {
-                            &(*$GPIOX::ptr()).pupdr.modify(|r, w| {
+                            (*$GPIOX::ptr()).pupdr.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b00 << offset))
                             });
-                            &(*$GPIOX::ptr()).moder.modify(|r, w| {
+                            (*$GPIOX::ptr()).moder.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b00 << offset))
                             })
                         };
@@ -591,10 +591,10 @@ macro_rules! gpio {
                     pub fn into_pull_down_input(self) -> $PXi<Input<PullDown>> {
                         let offset = 2 * $i;
                         unsafe {
-                            &(*$GPIOX::ptr()).pupdr.modify(|r, w| {
+                            (*$GPIOX::ptr()).pupdr.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b10 << offset))
                             });
-                            &(*$GPIOX::ptr()).moder.modify(|r, w| {
+                            (*$GPIOX::ptr()).moder.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b00 << offset))
                             })
                         };
@@ -606,10 +606,10 @@ macro_rules! gpio {
                     pub fn into_pull_up_input(self) -> $PXi<Input<PullUp>> {
                         let offset = 2 * $i;
                         unsafe {
-                            &(*$GPIOX::ptr()).pupdr.modify(|r, w| {
+                            (*$GPIOX::ptr()).pupdr.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b01 << offset))
                             });
-                            &(*$GPIOX::ptr()).moder.modify(|r, w| {
+                            (*$GPIOX::ptr()).moder.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b00 << offset))
                             }
                         )};
@@ -621,13 +621,13 @@ macro_rules! gpio {
                     pub fn into_open_drain_output(self) -> $PXi<Output<OpenDrain>> {
                         let offset = 2 * $i;
                         unsafe {
-                            &(*$GPIOX::ptr()).pupdr.modify(|r, w| {
+                            (*$GPIOX::ptr()).pupdr.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b00 << offset))
                             });
-                            &(*$GPIOX::ptr()).otyper.modify(|r, w| {
+                            (*$GPIOX::ptr()).otyper.modify(|r, w| {
                                 w.bits(r.bits() | (0b1 << $i))
                             });
-                            &(*$GPIOX::ptr()).moder.modify(|r, w| {
+                            (*$GPIOX::ptr()).moder.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b01 << offset))
                             })
                         };
@@ -640,13 +640,13 @@ macro_rules! gpio {
                         let offset = 2 * $i;
 
                         unsafe {
-                            &(*$GPIOX::ptr()).pupdr.modify(|r, w| {
+                            (*$GPIOX::ptr()).pupdr.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b00 << offset))
                             });
-                            &(*$GPIOX::ptr()).otyper.modify(|r, w| {
+                            (*$GPIOX::ptr()).otyper.modify(|r, w| {
                                 w.bits(r.bits() & !(0b1 << $i))
                             });
-                            &(*$GPIOX::ptr()).moder.modify(|r, w| {
+                            (*$GPIOX::ptr()).moder.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b01 << offset))
                             })
                         };
@@ -659,10 +659,10 @@ macro_rules! gpio {
                         let offset = 2 * $i;
 
                         unsafe {
-                            &(*$GPIOX::ptr()).pupdr.modify(|r, w| {
+                            (*$GPIOX::ptr()).pupdr.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b00 << offset))
                             });
-                            &(*$GPIOX::ptr()).moder.modify(|r, w| {
+                            (*$GPIOX::ptr()).moder.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (0b11 << offset))
                             }
                         )};
@@ -677,7 +677,7 @@ macro_rules! gpio {
                         let offset = 2 * $i;
 
                         unsafe {
-                            &(*$GPIOX::ptr()).ospeedr.modify(|r, w| {
+                            (*$GPIOX::ptr()).ospeedr.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | ((speed as u32) << offset))
                             })
                         };
@@ -692,7 +692,7 @@ macro_rules! gpio {
                         let offset = 2 * $i;
                         let value = if on { 0b01 } else { 0b00 };
                         unsafe {
-                            &(*$GPIOX::ptr()).pupdr.modify(|r, w| {
+                            (*$GPIOX::ptr()).pupdr.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (value << offset))
                             })
                         };
@@ -705,7 +705,7 @@ macro_rules! gpio {
                         let offset = 2 * $i;
 
                         unsafe {
-                            &(*$GPIOX::ptr()).ospeedr.modify(|r, w| {
+                            (*$GPIOX::ptr()).ospeedr.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | ((speed as u32) << offset))
                             })
                         };
@@ -718,7 +718,7 @@ macro_rules! gpio {
                         let offset = 2 * $i;
                         let value = if on { 0b01 } else { 0b00 };
                         unsafe {
-                            &(*$GPIOX::ptr()).pupdr.modify(|r, w| {
+                            (*$GPIOX::ptr()).pupdr.modify(|r, w| {
                                 w.bits((r.bits() & !(0b11 << offset)) | (value << offset))
                             })
                         };
@@ -732,7 +732,7 @@ macro_rules! gpio {
                     pub fn set_open_drain(self) -> $PXi<AlternateOD<MODE>> {
                         let offset = $i;
                         unsafe {
-                            &(*$GPIOX::ptr()).otyper.modify(|r, w| {
+                            (*$GPIOX::ptr()).otyper.modify(|r, w| {
                                 w.bits(r.bits() | (1 << offset))
                             })
                         };
@@ -818,7 +818,12 @@ macro_rules! gpio {
     }
 }
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
+#[cfg(any(
+    feature = "stm32f205",
+    feature = "stm32f207",
+    feature = "stm32f217",
+    feature = "stm32f215"
+))]
 gpio!(GPIOA, gpioa, 0, PA, 0, [
     PA0: (pa0, 0, Input<Floating>, exticr1),
     PA1: (pa1, 1, Input<Floating>, exticr1),
@@ -838,7 +843,12 @@ gpio!(GPIOA, gpioa, 0, PA, 0, [
     PA15: (pa15, 15, Input<Floating>, exticr4),
 ]);
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
+#[cfg(any(
+    feature = "stm32f205",
+    feature = "stm32f207",
+    feature = "stm32f217",
+    feature = "stm32f215"
+))]
 gpio!(GPIOB, gpiob, 1, PB, 1, [
     PB0: (pb0, 0, Input<Floating>, exticr1),
     PB1: (pb1, 1, Input<Floating>, exticr1),
@@ -858,7 +868,12 @@ gpio!(GPIOB, gpiob, 1, PB, 1, [
     PB15: (pb15, 15, Input<Floating>, exticr4),
 ]);
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
+#[cfg(any(
+    feature = "stm32f205",
+    feature = "stm32f207",
+    feature = "stm32f217",
+    feature = "stm32f215"
+))]
 gpio!(GPIOC, gpioc, 2, PC, 2, [
     PC0: (pc0, 0, Input<Floating>, exticr1),
     PC1: (pc1, 1, Input<Floating>, exticr1),
@@ -878,7 +893,12 @@ gpio!(GPIOC, gpioc, 2, PC, 2, [
     PC15: (pc15, 15, Input<Floating>, exticr4),
 ]);
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
+#[cfg(any(
+    feature = "stm32f205",
+    feature = "stm32f207",
+    feature = "stm32f217",
+    feature = "stm32f215"
+))]
 gpio!(GPIOD, gpiod, 3, PD, 3, [
     PD0: (pd0, 0, Input<Floating>, exticr1),
     PD1: (pd1, 1, Input<Floating>, exticr1),
@@ -898,7 +918,12 @@ gpio!(GPIOD, gpiod, 3, PD, 3, [
     PD15: (pd15, 15, Input<Floating>, exticr4),
 ]);
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
+#[cfg(any(
+    feature = "stm32f205",
+    feature = "stm32f207",
+    feature = "stm32f217",
+    feature = "stm32f215"
+))]
 gpio!(GPIOE, gpioe, 4, PE, 4, [
     PE0: (pe0, 0, Input<Floating>, exticr1),
     PE1: (pe1, 1, Input<Floating>, exticr1),
@@ -918,7 +943,12 @@ gpio!(GPIOE, gpioe, 4, PE, 4, [
     PE15: (pe15, 15, Input<Floating>, exticr4),
 ]);
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
+#[cfg(any(
+    feature = "stm32f205",
+    feature = "stm32f207",
+    feature = "stm32f217",
+    feature = "stm32f215"
+))]
 gpio!(GPIOF, gpiof, 5, PF, 5, [
     PF0: (pf0, 0, Input<Floating>, exticr1),
     PF1: (pf1, 1, Input<Floating>, exticr1),
@@ -938,7 +968,12 @@ gpio!(GPIOF, gpiof, 5, PF, 5, [
     PF15: (pf15, 15, Input<Floating>, exticr4),
 ]);
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f207"))]
+#[cfg(any(
+    feature = "stm32f205",
+    feature = "stm32f207",
+    feature = "stm32f217",
+    feature = "stm32f215"
+))]
 gpio!(GPIOG, gpiog, 6, PG, 6, [
     PG0: (pg0, 0, Input<Floating>, exticr1),
     PG1: (pg1, 1, Input<Floating>, exticr1),
@@ -958,7 +993,12 @@ gpio!(GPIOG, gpiog, 6, PG, 6, [
     PG15: (pg15, 15, Input<Floating>, exticr4),
 ]);
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f207"))]
+#[cfg(any(
+    feature = "stm32f205",
+    feature = "stm32f207",
+    feature = "stm32f217",
+    feature = "stm32f215"
+))]
 gpio!(GPIOI, gpioi, 7, PI, 7, [
     PI0: (pi0, 0, Input<Floating>, exticr1),
     PI1: (pi1, 1, Input<Floating>, exticr1),

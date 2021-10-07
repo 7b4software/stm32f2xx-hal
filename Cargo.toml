@@ -81,12 +81,12 @@ opt-level = "s"
 
 [[example]]
 name = "usb_serial"
-required-features = ["rt", "stm32f205", "usb_fs"]
+required-features = ["rt", "usb_fs"]
 
 [[example]]
 name = "delay-blinky"
-required-features = ["rt", "stm32f205"]
+required-features = ["rt"]
 
 [[example]]
 name = "dwt-blinky"
-required-features = ["rt", "stm32f205"]
+required-features = ["rt"]
