@@ -3,17 +3,16 @@
 
 use panic_halt as _;
 
-use cortex_m;
 use cortex_m_rt::entry;
 use stm32f2xx_hal as hal;
 
-use crate::hal::{prelude::*, serial::config::Config, serial::Serial, stm32};
+use crate::hal::{pac, prelude::*, serial::config::Config, serial::Serial};
 
 use core::fmt::Write; // for pretty formatting of the serial output
 
 #[entry]
 fn main() -> ! {
-    let dp = stm32::Peripherals::take().unwrap();
+    let dp = pac::Peripherals::take().unwrap();
     let cp = cortex_m::peripheral::Peripherals::take().unwrap();
 
     let gpioa = dp.GPIOA.split();
@@ -22,22 +21,19 @@ fn main() -> ! {
 
     let clocks = rcc.cfgr.use_hse(8.mhz()).freeze();
 
-    let mut delay = hal::delay::Delay::new(cp.SYST, clocks);
+    let mut delay = hal::delay::Delay::new(cp.SYST, &clocks);
 
     // define RX/TX pins
-    let tx_pin = gpioa.pa2.into_alternate_af7();
-    let rx_pin = gpioa.pa3.into_alternate_af7();
+    let tx_pin = gpioa.pa2.into_alternate();
 
     // configure serial
-    let serial = Serial::usart2(
+    let mut tx = Serial::tx(
         dp.USART2,
-        (tx_pin, rx_pin),
+        tx_pin,
         Config::default().baudrate(9600.bps()),
         clocks,
     )
     .unwrap();
-
-    let (mut tx, mut _rx) = serial.split();
 
     let mut value: u8 = 0;
 
