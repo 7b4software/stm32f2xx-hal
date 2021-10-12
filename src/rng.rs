@@ -1,16 +1,39 @@
+//! # Hardware random number generator.
+//!
+//!
+//! The build in random number generator (RNG) of an STM32F4 uses analog noise to
+//! proved random 32-bit values.
+//!
+//! Notes:
+//! - It takes 40 periods of `RNG_CLK` to generate a new random value.
+//! - The RNG requires the `PLL48_CLK` to be active ([more details](RngExt::constrain))
+//!
+//! For more details, see reference manual chapter 24.
+//!
+//! Minimal working example:
+//! ```
+//! let dp = pac::Peripherals::take().unwrap();
+//! let rcc = dp.RCC.constrain();
+//! let clocks = rcc.cfgr.require_pll48clk().freeze();
+//! let mut rand_source = dp.RNG.constrain(clocks);
+//! let rand_val = rand_source.next_u32();
+//! ```
+//!
+//! A full example can be found [in the examples folder on github](https://github.com/stm32-rs/stm32f4xx-hal/blob/master/examples/rng-display.rs)
 use core::cmp;
 use core::mem;
 
 use crate::hal::blocking::rng;
-use crate::rcc::Clocks;
-use crate::stm32;
-use crate::stm32::RNG;
+use crate::pac;
+use crate::pac::RNG;
+use crate::rcc::{Clocks, Enable, Reset};
 use crate::time::U32Ext;
 use core::num::NonZeroU32;
 use core::ops::Shl;
 use rand_core::RngCore;
 
-#[derive(Debug)]
+/// Random number generator specific errors
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ErrorKind {
     /// The RNG_CLK was not correctly detected (fRNG_CLK< fHCLK/16).
     /// See CECS in RNG peripheral documentation.
@@ -28,27 +51,43 @@ impl From<ErrorKind> for rand_core::Error {
     }
 }
 
+/// Helper trait to implement the `constrain` method for the
+/// [RNG peripheral](crate::pac::RNG) which is how the [Rng] struct is
+/// created.
+///
+/// Usage:
+/// ```
+/// let dp = pac::Peripherals::take().unwrap();
+/// let rcc = dp.RCC.constrain();
+/// let clocks = rcc.cfgr.require_pll48clk().freeze();
+/// let mut rand_source = dp.RNG.constrain(clocks);
+/// ```
 pub trait RngExt {
+    /// Enables the hardware random generator and provides the [Rng] struct.
+    ///
+    /// The datasheet states, that the `RNG_CLK` must not be less than 1/16 HCLK
+    /// (HCLK is the CPU clock), otherwise all reads of the RNG would return a
+    /// ClockError (CECS error).
+    /// As the `RNG_CLK` always seems to be connected to the `PLL48_CLK` and the
+    /// maximum value of `HCLK` is 168MHz, this is always true as long as the `PLL48_CLK` is enabled.
+    /// This can be done with the [require_pll48clk](crate::rcc::CFGR::require_pll48clk) function.
+    ///
+    /// See reference manual section 24.4.2 for more details
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `PLL48_CLK < 1/16 HCLK`.
     fn constrain(self, clocks: Clocks) -> Rng;
 }
 
 impl RngExt for RNG {
-    /// Enable RNG_CLK and the RNG peripheral.
-    /// Note that clocks must already be configured such that RNG_CLK is not less than 1/16 HCLK,
-    /// otherwise all reads of the RNG would return a ClockError (CECS error).
-    /// This function will panic if pll48clk < 1/16 hclk.
     fn constrain(self, clocks: Clocks) -> Rng {
-        let rcc = unsafe { &*stm32::RCC::ptr() };
+        let rcc = unsafe { &*pac::RCC::ptr() };
 
         cortex_m::interrupt::free(|_| {
             // enable RNG_CLK (peripheral clock)
-            rcc.ahb2enr.modify(|_, w| w.rngen().enabled());
-            // give RNG_CLK time to start
-            let _ = rcc.ahb2enr.read().rngen().is_enabled();
-
-            // reset the RNG
-            rcc.ahb2rstr.modify(|_, w| w.rngrst().set_bit());
-            rcc.ahb2rstr.modify(|_, w| w.rngrst().clear_bit());
+            RNG::enable(rcc);
+            RNG::reset(rcc);
 
             // verify the clock configuration is valid
             let hclk = clocks.hclk();
@@ -63,6 +102,20 @@ impl RngExt for RNG {
     }
 }
 
+/// Random number provider which provides access to all [rand_core::RngCore]
+/// functions.
+///
+/// Example use:
+///
+/// ```
+/// use rand_core::RngCore;
+///
+/// // ...
+///
+/// let mut rand_source = dp.RNG.constrain(clocks);
+/// let rand_u32: u32 = rand_source.next_u32();
+/// let rand_u64: u64 = rand_source.next_u64();
+/// ```
 pub struct Rng {
     rb: RNG,
 }
@@ -85,6 +138,8 @@ impl Rng {
         }
     }
 
+    /// Releases ownership of the [RNG](crate::pac::RNG) peripheral object
+    /// (after which `self` can't be used anymore).
     pub fn release(self) -> RNG {
         self.rb
     }

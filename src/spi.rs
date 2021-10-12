@@ -1,33 +1,21 @@
 use core::ops::Deref;
 use core::ptr;
 
-use crate::bb;
+use crate::gpio::{Const, NoPin, SetAlternate};
 use embedded_hal::spi;
 pub use embedded_hal::spi::{Mode, Phase, Polarity};
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
-use crate::stm32::{spi1, RCC, SPI1, SPI2, SPI3};
+use crate::gpio::{gpioa, gpiob, gpioc};
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
-use crate::gpio::gpioa::{PA5, PA6, PA7};
-
-#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
-use crate::gpio::gpiob::{PB10, PB13, PB14, PB15, PB3, PB4, PB5};
-
-#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
-use crate::gpio::gpioc::{PC10, PC11, PC12, PC2, PC3};
-
-#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
-use crate::gpio::gpioi::{PI1, PI2, PI3};
-
-#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
-use crate::gpio::{Alternate, AF5, AF6};
+use crate::pac::{spi1, RCC, SPI1, SPI2, SPI3};
+use crate::rcc;
 
 use crate::rcc::Clocks;
 use crate::time::Hertz;
 
 /// SPI error
-#[derive(Debug)]
+#[non_exhaustive]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Error {
     /// Overrun occurred
     Overrun,
@@ -35,14 +23,18 @@ pub enum Error {
     ModeFault,
     /// CRC error
     Crc,
-    #[doc(hidden)]
-    _Extensible,
 }
 
 pub trait Pins<SPI> {}
-pub trait PinSck<SPI> {}
-pub trait PinMiso<SPI> {}
-pub trait PinMosi<SPI> {}
+pub trait PinSck<SPI> {
+    type A;
+}
+pub trait PinMiso<SPI> {
+    type A;
+}
+pub trait PinMosi<SPI> {
+    type A;
+}
 
 impl<SPI, SCK, MISO, MOSI> Pins<SPI> for (SCK, MISO, MOSI)
 where
@@ -53,87 +45,99 @@ where
 }
 
 /// A filler type for when the SCK pin is unnecessary
-pub struct NoSck;
+pub type NoSck = NoPin;
 /// A filler type for when the Miso pin is unnecessary
-pub struct NoMiso;
+pub type NoMiso = NoPin;
 /// A filler type for when the Mosi pin is unnecessary
-pub struct NoMosi;
+pub type NoMosi = NoPin;
+
+impl<SPI> PinSck<SPI> for NoPin
+where
+    SPI: Instance,
+{
+    type A = Const<0>;
+}
+impl<SPI> PinMiso<SPI> for NoPin
+where
+    SPI: Instance,
+{
+    type A = Const<0>;
+}
+impl<SPI> PinMosi<SPI> for NoPin
+where
+    SPI: Instance,
+{
+    type A = Const<0>;
+}
 
 macro_rules! pins {
-    ($($SPIX:ty: SCK: [$($SCK:ty),*] MISO: [$($MISO:ty),*] MOSI: [$($MOSI:ty),*])+) => {
+    ($($SPIX:ty: SCK: [$($gpio1:ident::$PX1:ident<$A1:literal>),*]
+                MISO: [$($gpio2:ident::$PX2:ident<$A2:literal>),*]
+                MOSI: [$($gpio3:ident::$PX3:ident<$A3:literal>),*])+) => {
         $(
             $(
-                impl PinSck<$SPIX> for $SCK {}
+                impl<MODE> PinSck<$SPIX> for $gpio1::$PX1<MODE> {
+                    type A = Const<$A1>;
+                }
             )*
             $(
-                impl PinMiso<$SPIX> for $MISO {}
+                impl<MODE> PinMiso<$SPIX> for $gpio2::$PX2<MODE> {
+                    type A = Const<$A2>;
+                }
             )*
             $(
-                impl PinMosi<$SPIX> for $MOSI {}
+                impl<MODE> PinMosi<$SPIX> for $gpio3::$PX3<MODE> {
+                    type A = Const<$A3>;
+                }
             )*
         )+
     }
 }
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f207"))]
 pins! {
     SPI1:
         SCK: [
-            NoSck,
-            PA5<Alternate<AF5>>,
-            PB3<Alternate<AF5>>
+            gpioa::PA5<5>,
+            gpiob::PB3<5>
         ]
         MISO: [
-            NoMiso,
-            PA6<Alternate<AF5>>,
-            PB4<Alternate<AF5>>
+            gpioa::PA6<5>,
+            gpiob::PB4<5>
         ]
         MOSI: [
-            NoMosi,
-            PA7<Alternate<AF5>>,
-            PB5<Alternate<AF5>>
+            gpioa::PA7<5>,
+            gpiob::PB5<5>
         ]
 
     SPI2:
         SCK: [
-            NoSck,
-            PB10<Alternate<AF5>>,
-            PB13<Alternate<AF5>>
+            gpiob::PB10<5>,
+            gpiob::PB13<5>
         ]
         MISO: [
-            NoMiso,
-            PB14<Alternate<AF5>>,
-            PC2<Alternate<AF5>>
+            gpiob::PB14<5>,
+            gpioc::PC2<5>
         ]
         MOSI: [
-            NoMosi,
-            PB15<Alternate<AF5>>,
-            PC3<Alternate<AF5>>
-        ]
-    SPI3:
-        SCK: [
-            NoSck,
-            PB3<Alternate<AF6>>,
-            PC10<Alternate<AF6>>
-        ]
-        MISO: [
-            NoMiso,
-            PB4<Alternate<AF6>>,
-            PC11<Alternate<AF6>>
-        ]
-        MOSI: [
-            NoMosi,
-            PB5<Alternate<AF6>>,
-            PC12<Alternate<AF6>>
+            gpiob::PB15<5>,
+            gpioc::PC3<5>
         ]
 }
 
-#[cfg(any(feature = "stm32f205",))]
 pins! {
-    SPI2:
-        SCK: [PI1<Alternate<AF5>>]
-        MISO: [PI2<Alternate<AF5>>]
-        MOSI: [PI3<Alternate<AF5>>]
+    SPI3:
+        SCK: [
+            gpiob::PB3<6>,
+            gpioc::PC10<6>
+        ]
+        MISO: [
+            gpiob::PB4<6>,
+            gpioc::PC11<6>
+        ]
+        MOSI: [
+            gpiob::PB5<6>,
+            gpioc::PC12<6>
+        ]
 }
 
 /// Interrupt events
@@ -146,74 +150,198 @@ pub enum Event {
     Error,
 }
 
+/// Normal mode - RX and TX pins are independent
+pub struct TransferModeNormal;
+/// BIDI mode - use TX pin as RX then spi receive data
+pub struct TransferModeBidi;
+
 #[derive(Debug)]
-pub struct Spi<SPI, PINS> {
+pub struct Spi<SPI, PINS, TRANSFER_MODE> {
     spi: SPI,
     pins: PINS,
+    transfer_mode: TRANSFER_MODE,
 }
 
-#[cfg(any(feature = "stm32f205",))]
-impl<PINS> Spi<SPI1, PINS> {
-    pub fn spi1(spi: SPI1, pins: PINS, mode: Mode, freq: Hertz, clocks: Clocks) -> Self
-    where
-        PINS: Pins<SPI1>,
-    {
-        unsafe {
-            const EN_BIT: u8 = 12;
-            // NOTE(unsafe) this reference will only be used for atomic writes with no side effects.
-            let rcc = &(*RCC::ptr());
-
-            // Enable clock.
-            bb::set(&rcc.apb2enr, EN_BIT);
-        }
-
-        Spi { spi, pins }.init(mode, freq, clocks.pclk2())
-    }
-}
-
-#[cfg(any(feature = "stm32f205",))]
-impl<PINS> Spi<SPI2, PINS> {
-    pub fn spi2(spi: SPI2, pins: PINS, mode: Mode, freq: Hertz, clocks: Clocks) -> Self
-    where
-        PINS: Pins<SPI2>,
-    {
-        unsafe {
-            const EN_BIT: u8 = 14;
-            // NOTE(unsafe) this reference will only be used for atomic writes with no side effects.
-            let rcc = &(*RCC::ptr());
-
-            // Enable clock.
-            bb::set(&rcc.apb1enr, EN_BIT);
-        }
-
-        Spi { spi, pins }.init(mode, freq, clocks.pclk1())
-    }
-}
-
-#[cfg(any(feature = "stm32f205",))]
-impl<PINS> Spi<SPI3, PINS> {
-    pub fn spi3(spi: SPI3, pins: PINS, mode: Mode, freq: Hertz, clocks: Clocks) -> Self
-    where
-        PINS: Pins<SPI3>,
-    {
-        unsafe {
-            const EN_BIT: u8 = 15;
-            // NOTE(unsafe) this reference will only be used for atomic writes with no side effects.
-            let rcc = &(*RCC::ptr());
-
-            // Enable clock.
-            bb::set(&rcc.apb1enr, EN_BIT);
-        }
-
-        Spi { spi, pins }.init(mode, freq, clocks.pclk1())
-    }
-}
-
-impl<SPI, PINS> Spi<SPI, PINS>
-where
-    SPI: Deref<Target = spi1::RegisterBlock>,
+// Implemented by all SPI instances
+pub trait Instance:
+    crate::Sealed + Deref<Target = spi1::RegisterBlock> + rcc::Enable + rcc::Reset + rcc::GetBusFreq
 {
-    pub fn init(self, mode: Mode, freq: Hertz, clock: Hertz) -> Self {
+}
+
+// Implemented by all SPI instances
+impl Instance for SPI1 {}
+impl Instance for SPI2 {}
+
+#[cfg(feature = "spi3")]
+impl Instance for SPI3 {}
+
+impl<SPI, SCK, MISO, MOSI, const SCKA: u8, const MISOA: u8, const MOSIA: u8>
+    Spi<SPI, (SCK, MISO, MOSI), TransferModeNormal>
+where
+    SPI: Instance,
+    SCK: PinSck<SPI, A = Const<SCKA>> + SetAlternate<SCKA>,
+    MISO: PinMiso<SPI, A = Const<MISOA>> + SetAlternate<MISOA>,
+    MOSI: PinMosi<SPI, A = Const<MOSIA>> + SetAlternate<MOSIA>,
+{
+    pub fn new(
+        spi: SPI,
+        mut pins: (SCK, MISO, MOSI),
+        mode: Mode,
+        freq: impl Into<Hertz>,
+        clocks: Clocks,
+    ) -> Self {
+        unsafe {
+            // NOTE(unsafe) this reference will only be used for atomic writes with no side effects.
+            let rcc = &(*RCC::ptr());
+            SPI::enable(rcc);
+            SPI::reset(rcc);
+        }
+
+        pins.0.set_alt_mode();
+        pins.1.set_alt_mode();
+        pins.2.set_alt_mode();
+
+        Spi {
+            spi,
+            pins,
+            transfer_mode: TransferModeNormal,
+        }
+        .pre_init(mode, freq.into(), SPI::get_frequency(&clocks))
+        .init()
+    }
+
+    pub fn to_bidi_transfer_mode(self) -> Spi<SPI, (SCK, MISO, MOSI), TransferModeBidi> {
+        let mut dev_w_new_t_mode = self.into_mode(TransferModeBidi {});
+        dev_w_new_t_mode.enable(false);
+        dev_w_new_t_mode.init()
+    }
+}
+
+impl<SPI, SCK, MISO, MOSI, const SCKA: u8, const MISOA: u8, const MOSIA: u8>
+    Spi<SPI, (SCK, MISO, MOSI), TransferModeBidi>
+where
+    SPI: Instance,
+    SCK: PinSck<SPI, A = Const<SCKA>> + SetAlternate<SCKA>,
+    MISO: PinMiso<SPI, A = Const<MISOA>> + SetAlternate<MISOA>,
+    MOSI: PinMosi<SPI, A = Const<MOSIA>> + SetAlternate<MOSIA>,
+{
+    pub fn new_bidi(
+        spi: SPI,
+        mut pins: (SCK, MISO, MOSI),
+        mode: Mode,
+        freq: impl Into<Hertz>,
+        clocks: Clocks,
+    ) -> Self {
+        unsafe {
+            // NOTE(unsafe) this reference will only be used for atomic writes with no side effects.
+            let rcc = &(*RCC::ptr());
+            SPI::enable(rcc);
+            SPI::reset(rcc);
+        }
+
+        pins.0.set_alt_mode();
+        pins.1.set_alt_mode();
+        pins.2.set_alt_mode();
+
+        Spi {
+            spi,
+            pins,
+            transfer_mode: TransferModeBidi,
+        }
+        .pre_init(mode, freq.into(), SPI::get_frequency(&clocks))
+        .init()
+    }
+
+    pub fn to_normal_transfer_mode(self) -> Spi<SPI, (SCK, MISO, MOSI), TransferModeNormal> {
+        let mut dev_w_new_t_mode = self.into_mode(TransferModeNormal {});
+        dev_w_new_t_mode.enable(false);
+        dev_w_new_t_mode.init()
+    }
+}
+
+impl<SPI, SCK, MISO, MOSI, TRANSFER_MODE, const SCKA: u8, const MISOA: u8, const MOSIA: u8>
+    Spi<SPI, (SCK, MISO, MOSI), TRANSFER_MODE>
+where
+    SPI: Instance,
+    SCK: PinSck<SPI, A = Const<SCKA>> + SetAlternate<SCKA>,
+    MISO: PinMiso<SPI, A = Const<MISOA>> + SetAlternate<MISOA>,
+    MOSI: PinMosi<SPI, A = Const<MOSIA>> + SetAlternate<MOSIA>,
+{
+    pub fn release(mut self) -> (SPI, (SCK, MISO, MOSI)) {
+        self.pins.0.restore_mode();
+        self.pins.1.restore_mode();
+        self.pins.2.restore_mode();
+
+        (self.spi, self.pins)
+    }
+}
+
+impl<SPI, PINS> Spi<SPI, PINS, TransferModeNormal>
+where
+    SPI: Instance,
+{
+    pub fn init(self) -> Self {
+        self.spi.cr1.modify(|_, w| {
+            // bidimode: 2-line unidirectional
+            w.bidimode()
+                .clear_bit()
+                .bidioe()
+                .clear_bit()
+                // spe: enable the SPI bus
+                .spe()
+                .set_bit()
+        });
+
+        self
+    }
+}
+
+impl<SPI, PINS> Spi<SPI, PINS, TransferModeBidi>
+where
+    SPI: Instance,
+{
+    pub fn init(self) -> Self {
+        self.spi.cr1.modify(|_, w| {
+            // bidimode: 1-line unidirectional
+            w.bidimode()
+                .set_bit()
+                .bidioe()
+                .set_bit()
+                // spe: enable the SPI bus
+                .spe()
+                .set_bit()
+        });
+
+        self
+    }
+}
+
+impl<SPI, PINS, TRANSFER_MODE> Spi<SPI, PINS, TRANSFER_MODE>
+where
+    SPI: Instance,
+{
+    /// Convert the spi to another transfer mode.
+    fn into_mode<TRANSFER_MODE2>(
+        self,
+        transfer_mode: TRANSFER_MODE2,
+    ) -> Spi<SPI, PINS, TRANSFER_MODE2> {
+        Spi {
+            spi: self.spi,
+            pins: self.pins,
+            transfer_mode,
+        }
+    }
+
+    /// Enable/disable spi
+    pub fn enable(&mut self, enable: bool) {
+        self.spi.cr1.modify(|_, w| {
+            // spe: enable the SPI bus
+            w.spe().bit(enable)
+        });
+    }
+
+    /// Pre initializing the SPI bus.
+    pub fn pre_init(self, mode: Mode, freq: Hertz, clock: Hertz) -> Self {
         // disable SS output
         self.spi.cr2.write(|w| w.ssoe().clear_bit());
 
@@ -229,36 +357,30 @@ where
             _ => 0b111,
         };
 
-        // mstr: master configuration
-        // lsbfirst: MSB first
-        // ssm: enable software slave management (NSS pin free for other uses)
-        // ssi: set nss high = master mode
-        // dff: 8 bit frames
-        // bidimode: 2-line unidirectional
-        // spe: enable the SPI bus
         self.spi.cr1.write(|w| {
             w.cpha()
                 .bit(mode.phase == Phase::CaptureOnSecondTransition)
                 .cpol()
                 .bit(mode.polarity == Polarity::IdleHigh)
+                // mstr: master configuration
                 .mstr()
                 .set_bit()
                 .br()
                 .bits(br)
+                // lsbfirst: MSB first
                 .lsbfirst()
                 .clear_bit()
+                // ssm: enable software slave management (NSS pin free for other uses)
                 .ssm()
                 .set_bit()
+                // ssi: set nss high = master mode
                 .ssi()
                 .set_bit()
                 .rxonly()
                 .clear_bit()
+                // dff: 8 bit frames
                 .dff()
                 .clear_bit()
-                .bidimode()
-                .clear_bit()
-                .spe()
-                .set_bit()
         });
 
         self
@@ -312,60 +434,204 @@ where
         self.spi.sr.read().ovr().bit_is_set()
     }
 
-    pub fn free(self) -> (SPI, PINS) {
-        (self.spi, self.pins)
-    }
-}
-
-impl<SPI, PINS> spi::FullDuplex<u8> for Spi<SPI, PINS>
-where
-    SPI: Deref<Target = spi1::RegisterBlock>,
-{
-    type Error = Error;
-
-    fn read(&mut self) -> nb::Result<u8, Error> {
+    #[inline(always)]
+    fn check_read(&mut self) -> nb::Result<u8, Error> {
         let sr = self.spi.sr.read();
 
         Err(if sr.ovr().bit_is_set() {
-            nb::Error::Other(Error::Overrun)
+            Error::Overrun.into()
         } else if sr.modf().bit_is_set() {
-            nb::Error::Other(Error::ModeFault)
+            Error::ModeFault.into()
         } else if sr.crcerr().bit_is_set() {
-            nb::Error::Other(Error::Crc)
+            Error::Crc.into()
         } else if sr.rxne().bit_is_set() {
-            // NOTE(read_volatile) read only 1 byte (the svd2rust API only allows
-            // reading a half-word)
-            return Ok(unsafe { ptr::read_volatile(&self.spi.dr as *const _ as *const u8) });
+            return Ok(self.read_u8());
         } else {
             nb::Error::WouldBlock
         })
     }
 
-    fn send(&mut self, byte: u8) -> nb::Result<(), Error> {
+    #[inline(always)]
+    fn check_send(&mut self, byte: u8) -> nb::Result<(), Error> {
         let sr = self.spi.sr.read();
 
         Err(if sr.ovr().bit_is_set() {
-            nb::Error::Other(Error::Overrun)
+            // Read from the DR to clear the OVR bit
+            let _ = self.spi.dr.read();
+            Error::Overrun.into()
         } else if sr.modf().bit_is_set() {
-            nb::Error::Other(Error::ModeFault)
+            // Write to CR1 to clear MODF
+            self.spi.cr1.modify(|_r, w| w);
+            Error::ModeFault.into()
         } else if sr.crcerr().bit_is_set() {
-            nb::Error::Other(Error::Crc)
+            // Clear the CRCERR bit
+            self.spi.sr.modify(|_r, w| {
+                w.crcerr().clear_bit();
+                w
+            });
+            Error::Crc.into()
         } else if sr.txe().bit_is_set() {
-            // NOTE(write_volatile) see note above
-            unsafe { ptr::write_volatile(&self.spi.dr as *const _ as *mut u8, byte) }
+            self.send_u8(byte);
             return Ok(());
         } else {
             nb::Error::WouldBlock
         })
     }
+
+    #[inline(always)]
+    fn read_u8(&mut self) -> u8 {
+        // NOTE(read_volatile) read only 1 byte (the svd2rust API only allows reading a half-word)
+        unsafe { ptr::read_volatile(&self.spi.dr as *const _ as *const u8) }
+    }
+
+    #[inline(always)]
+    fn send_u8(&mut self, byte: u8) {
+        // NOTE(write_volatile) see note above
+        unsafe { ptr::write_volatile(&self.spi.dr as *const _ as *mut u8, byte) }
+    }
 }
 
-impl<SPI, PINS> embedded_hal::blocking::spi::transfer::Default<u8> for Spi<SPI, PINS> where
-    SPI: Deref<Target = spi1::RegisterBlock>
+impl<SPI, PINS> spi::FullDuplex<u8> for Spi<SPI, PINS, TransferModeNormal>
+where
+    SPI: Instance,
 {
+    type Error = Error;
+
+    fn read(&mut self) -> nb::Result<u8, Error> {
+        self.check_read()
+    }
+
+    fn send(&mut self, byte: u8) -> nb::Result<(), Error> {
+        self.check_send(byte)
+    }
 }
 
-impl<SPI, PINS> embedded_hal::blocking::spi::write::Default<u8> for Spi<SPI, PINS> where
-    SPI: Deref<Target = spi1::RegisterBlock>
+impl<SPI, PINS> spi::FullDuplex<u8> for Spi<SPI, PINS, TransferModeBidi>
+where
+    SPI: Instance,
 {
+    type Error = Error;
+
+    fn read(&mut self) -> nb::Result<u8, Error> {
+        self.spi.cr1.modify(|_, w| w.bidioe().clear_bit());
+        self.check_read()
+    }
+
+    fn send(&mut self, byte: u8) -> nb::Result<(), Error> {
+        self.spi.cr1.modify(|_, w| w.bidioe().set_bit());
+        self.check_send(byte)
+    }
+}
+
+mod blocking {
+    use super::{Error, Instance, Spi, TransferModeBidi, TransferModeNormal};
+    use embedded_hal::blocking::spi::{Operation, Transactional, Transfer, Write, WriteIter};
+    use embedded_hal::spi::FullDuplex;
+
+    impl<SPI, PINS, TRANSFER_MODE> Transfer<u8> for Spi<SPI, PINS, TRANSFER_MODE>
+    where
+        Self: FullDuplex<u8, Error = Error>,
+        SPI: Instance,
+    {
+        type Error = Error;
+
+        fn transfer<'w>(&mut self, words: &'w mut [u8]) -> Result<&'w [u8], Self::Error> {
+            for word in words.iter_mut() {
+                nb::block!(self.send(*word))?;
+                *word = nb::block!(self.read())?;
+            }
+
+            Ok(words)
+        }
+    }
+
+    impl<SPI, PINS> Write<u8> for Spi<SPI, PINS, TransferModeNormal>
+    where
+        Self: FullDuplex<u8, Error = Error>,
+        SPI: Instance,
+    {
+        type Error = Error;
+
+        fn write(&mut self, words: &[u8]) -> Result<(), Self::Error> {
+            for word in words {
+                nb::block!(self.send(*word))?;
+                nb::block!(self.read())?;
+            }
+
+            Ok(())
+        }
+    }
+
+    impl<SPI, PINS> Write<u8> for Spi<SPI, PINS, TransferModeBidi>
+    where
+        Self: FullDuplex<u8, Error = Error>,
+        SPI: Instance,
+    {
+        type Error = Error;
+
+        fn write(&mut self, words: &[u8]) -> Result<(), Self::Error> {
+            for word in words {
+                nb::block!(self.send(*word))?;
+            }
+
+            Ok(())
+        }
+    }
+
+    impl<SPI, PINS> WriteIter<u8> for Spi<SPI, PINS, TransferModeNormal>
+    where
+        Self: FullDuplex<u8, Error = Error>,
+        SPI: Instance,
+    {
+        type Error = Error;
+
+        fn write_iter<WI>(&mut self, words: WI) -> Result<(), Self::Error>
+        where
+            WI: IntoIterator<Item = u8>,
+        {
+            for word in words.into_iter() {
+                nb::block!(self.send(word))?;
+                nb::block!(self.read())?;
+            }
+
+            Ok(())
+        }
+    }
+
+    impl<SPI, PINS> WriteIter<u8> for Spi<SPI, PINS, TransferModeBidi>
+    where
+        Self: FullDuplex<u8, Error = Error>,
+        SPI: Instance,
+    {
+        type Error = Error;
+
+        fn write_iter<WI>(&mut self, words: WI) -> Result<(), Self::Error>
+        where
+            WI: IntoIterator<Item = u8>,
+        {
+            for word in words.into_iter() {
+                nb::block!(self.send(word))?;
+            }
+
+            Ok(())
+        }
+    }
+
+    impl<SPI, PINS, TRANSFER_MODE, W: 'static> Transactional<W> for Spi<SPI, PINS, TRANSFER_MODE>
+    where
+        Self: Write<W, Error = Error> + Transfer<W, Error = Error>,
+    {
+        type Error = Error;
+
+        fn exec<'a>(&mut self, operations: &mut [Operation<'a, W>]) -> Result<(), Error> {
+            for op in operations {
+                match op {
+                    Operation::Write(w) => self.write(w)?,
+                    Operation::Transfer(t) => self.transfer(t).map(|_| ())?,
+                }
+            }
+
+            Ok(())
+        }
+    }
 }

@@ -1,29 +1,86 @@
 use core::ops::Deref;
 use embedded_hal::blocking::i2c::{Read, Write, WriteRead};
 
-use crate::gpio::{AlternateOD, AF4};
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
-use crate::stm32::{I2C1, I2C2, I2C3, RCC};
-use crate::{bb, pac::i2c1};
+use crate::pac::i2c1;
+use crate::rcc::{Enable, Reset};
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
-use crate::gpio::gpioa::{PA8, PA9};
+use crate::gpio::{Const, SetAlternateOD};
+use crate::pac::{I2C1, I2C2, I2C3, RCC};
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
-use crate::gpio::gpiob::{PB10, PB11, PB6, PB7};
+use crate::gpio::{gpioa, gpiob, gpioc, gpiof, gpioh};
 
 use crate::rcc::Clocks;
-use crate::time::{Hertz, KiloHertz, U32Ext};
+use crate::time::{Hertz, U32Ext};
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum DutyCycle {
+    Ratio2to1,
+    Ratio16to9,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Mode {
+    Standard {
+        frequency: Hertz,
+    },
+    Fast {
+        frequency: Hertz,
+        duty_cycle: DutyCycle,
+    },
+}
+
+impl Mode {
+    pub fn standard<F: Into<Hertz>>(frequency: F) -> Self {
+        Self::Standard {
+            frequency: frequency.into(),
+        }
+    }
+
+    pub fn fast<F: Into<Hertz>>(frequency: F, duty_cycle: DutyCycle) -> Self {
+        Self::Fast {
+            frequency: frequency.into(),
+            duty_cycle,
+        }
+    }
+
+    pub fn get_frequency(&self) -> Hertz {
+        match *self {
+            Self::Standard { frequency } => frequency,
+            Self::Fast { frequency, .. } => frequency,
+        }
+    }
+}
+
+impl<F> From<F> for Mode
+where
+    F: Into<Hertz>,
+{
+    fn from(frequency: F) -> Self {
+        let frequency: Hertz = frequency.into();
+        if frequency <= 100_000.hz() {
+            Self::Standard { frequency }
+        } else {
+            Self::Fast {
+                frequency,
+                duty_cycle: DutyCycle::Ratio2to1,
+            }
+        }
+    }
+}
 
 /// I2C abstraction
-pub struct I2c<I2C, PINS> {
+pub struct I2c<I2C: Instance, PINS> {
     i2c: I2C,
     pins: PINS,
 }
 
 pub trait Pins<I2c> {}
-pub trait PinScl<I2c> {}
-pub trait PinSda<I2c> {}
+pub trait PinScl<I2c> {
+    type A;
+}
+pub trait PinSda<I2c> {
+    type A;
+}
 
 impl<I2c, SCL, SDA> Pins<I2c> for (SCL, SDA)
 where
@@ -32,166 +89,146 @@ where
 {
 }
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
-impl PinScl<I2C1> for PB6<AlternateOD<AF4>> {}
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
-impl PinSda<I2C1> for PB7<AlternateOD<AF4>> {}
+macro_rules! pin {
+    ($trait:ident<$I2C:ident> for $gpio:ident::$PX:ident<$A:literal>) => {
+        impl<MODE> $trait<$I2C> for $gpio::$PX<MODE> {
+            type A = Const<$A>;
+        }
+    };
+}
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
-impl PinScl<I2C2> for PB10<AlternateOD<AF4>> {}
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
-impl PinSda<I2C2> for PB11<AlternateOD<AF4>> {}
+pin!(PinScl<I2C1> for gpiob::PB6<4>);
+pin!(PinSda<I2C1> for gpiob::PB7<4>);
+pin!(PinScl<I2C1> for gpiob::PB8<4>);
+pin!(PinSda<I2C1> for gpiob::PB9<4>);
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
-impl PinScl<I2C3> for PA8<AlternateOD<AF4>> {}
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
-impl PinSda<I2C3> for PA9<AlternateOD<AF4>> {}
+pin!(PinScl<I2C2> for gpiob::PB10<4>);
+pin!(PinSda<I2C2> for gpiob::PB11<4>);
+pin!(PinScl<I2C2> for gpiof::PF1<4>);
+pin!(PinSda<I2C2> for gpiof::PF0<4>);
+pin!(PinScl<I2C2> for gpioh::PH4<4>);
+pin!(PinSda<I2C2> for gpioh::PH5<4>);
 
-#[derive(Debug)]
+pin!(PinScl<I2C3> for gpioa::PA8<4>);
+pin!(PinSda<I2C3> for gpioc::PC9<4>);
+pin!(PinScl<I2C3> for gpioh::PH7<4>);
+pin!(PinSda<I2C3> for gpioh::PH8<4>);
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Error {
     OVERRUN,
     NACK,
     TIMEOUT,
+    // Note: The BUS error type is not currently returned, but is maintained for backwards
+    // compatibility.
     BUS,
     CRC,
     ARBITRATION,
 }
 
-impl<PINS> I2c<I2C1, PINS> {
-    pub fn i2c1(i2c: I2C1, pins: PINS, speed: KiloHertz, clocks: Clocks) -> Self
-    where
-        PINS: Pins<I2C1>,
-    {
+pub trait Instance: crate::Sealed + Deref<Target = i2c1::RegisterBlock> + Enable + Reset {}
+
+impl Instance for I2C1 {}
+impl Instance for I2C2 {}
+
+#[cfg(feature = "i2c3")]
+impl Instance for I2C3 {}
+
+impl<I2C, SCL, SDA, const SCLA: u8, const SDAA: u8> I2c<I2C, (SCL, SDA)>
+where
+    I2C: Instance,
+    SCL: PinScl<I2C, A = Const<SCLA>> + SetAlternateOD<SCLA>,
+    SDA: PinSda<I2C, A = Const<SDAA>> + SetAlternateOD<SDAA>,
+{
+    pub fn new<M: Into<Mode>>(i2c: I2C, mut pins: (SCL, SDA), mode: M, clocks: Clocks) -> Self {
         unsafe {
-            const EN_BIT: u8 = 21;
-            const RESET_BIT: u8 = 21;
             // NOTE(unsafe) this reference will only be used for atomic writes with no side effects.
             let rcc = &(*RCC::ptr());
 
             // Enable and reset clock.
-            bb::set(&rcc.apb1enr, EN_BIT);
-            bb::set(&rcc.apb1rstr, RESET_BIT);
-            bb::clear(&rcc.apb1rstr, RESET_BIT);
+            I2C::enable(rcc);
+            I2C::reset(rcc);
         }
 
+        pins.0.set_alt_mode();
+        pins.1.set_alt_mode();
+
         let i2c = I2c { i2c, pins };
-        i2c.i2c_init(speed, clocks.pclk1());
+        i2c.i2c_init(mode, clocks.pclk1());
         i2c
     }
-}
 
-impl<PINS> I2c<I2C2, PINS> {
-    pub fn i2c2(i2c: I2C2, pins: PINS, speed: KiloHertz, clocks: Clocks) -> Self
-    where
-        PINS: Pins<I2C2>,
-    {
-        unsafe {
-            const EN_BIT: u8 = 22;
-            const RESET_BIT: u8 = 22;
-            // NOTE(unsafe) this reference will only be used for atomic writes with no side effects.
-            let rcc = &(*RCC::ptr());
+    pub fn release(mut self) -> (I2C, (SCL, SDA)) {
+        self.pins.0.restore_mode();
+        self.pins.1.restore_mode();
 
-            // Enable and reset clock.
-            bb::set(&rcc.apb1enr, EN_BIT);
-            bb::set(&rcc.apb1rstr, RESET_BIT);
-            bb::clear(&rcc.apb1rstr, RESET_BIT);
-        }
-
-        let i2c = I2c { i2c, pins };
-        i2c.i2c_init(speed, clocks.pclk1());
-        i2c
-    }
-}
-
-impl<PINS> I2c<I2C3, PINS> {
-    pub fn i2c3(i2c: I2C3, pins: PINS, speed: KiloHertz, clocks: Clocks) -> Self
-    where
-        PINS: Pins<I2C3>,
-    {
-        unsafe {
-            const EN_BIT: u8 = 23;
-            const RESET_BIT: u8 = 23;
-            // NOTE(unsafe) this reference will only be used for atomic writes with no side effects.
-            let rcc = &(*RCC::ptr());
-
-            // Enable and reset clock.
-            bb::set(&rcc.apb1enr, EN_BIT);
-            bb::set(&rcc.apb1rstr, RESET_BIT);
-            bb::clear(&rcc.apb1rstr, RESET_BIT);
-        }
-
-        let i2c = I2c { i2c, pins };
-        i2c.i2c_init(speed, clocks.pclk1());
-        i2c
+        (self.i2c, self.pins)
     }
 }
 
 impl<I2C, PINS> I2c<I2C, PINS>
 where
-    I2C: Deref<Target = i2c1::RegisterBlock>,
+    I2C: Instance,
 {
-    fn i2c_init(&self, speed: KiloHertz, pclk: Hertz) {
-        let speed: Hertz = speed.into();
-
+    fn i2c_init<M: Into<Mode>>(&self, mode: M, pclk: Hertz) {
+        let mode = mode.into();
         // Make sure the I2C unit is disabled so we can configure it
         self.i2c.cr1.modify(|_, w| w.pe().clear_bit());
 
         // Calculate settings for I2C speed modes
         let clock = pclk.0;
-        let freq = clock / 1_000_000;
-        assert!(freq >= 2 && freq <= 50);
+        let clc_mhz = clock / 1_000_000;
+        assert!((2..=50).contains(&clc_mhz));
 
         // Configure bus frequency into I2C peripheral
-        self.i2c.cr2.write(|w| unsafe { w.freq().bits(freq as u8) });
+        self.i2c
+            .cr2
+            .write(|w| unsafe { w.freq().bits(clc_mhz as u8) });
 
-        let trise = if speed <= 100.khz().into() {
-            freq + 1
-        } else {
-            (freq * 300) / 1000 + 1
+        let trise = match mode {
+            Mode::Standard { .. } => clc_mhz + 1,
+            Mode::Fast { .. } => clc_mhz * 300 / 1000 + 1,
         };
 
         // Configure correct rise times
         self.i2c.trise.write(|w| w.trise().bits(trise as u8));
 
-        // I2C clock control calculation
-        if speed <= 100.khz().into() {
-            let ccr = {
-                let ccr = clock / (speed.0 * 2);
-                if ccr < 4 {
-                    4
-                } else {
-                    ccr
-                }
-            };
+        match mode {
+            // I2C clock control calculation
+            Mode::Standard { frequency } => {
+                let ccr = (clock / (frequency.0 * 2)).max(4);
 
-            // Set clock to standard mode with appropriate parameters for selected speed
-            self.i2c.ccr.write(|w| unsafe {
-                w.f_s()
-                    .clear_bit()
-                    .duty()
-                    .clear_bit()
-                    .ccr()
-                    .bits(ccr as u16)
-            });
-        } else {
-            const DUTYCYCLE: u8 = 0;
-            if DUTYCYCLE == 0 {
-                let ccr = clock / (speed.0 * 3);
-                let ccr = if ccr < 1 { 1 } else { ccr };
-
-                // Set clock to fast mode with appropriate parameters for selected speed (2:1 duty cycle)
+                // Set clock to standard mode with appropriate parameters for selected speed
                 self.i2c.ccr.write(|w| unsafe {
-                    w.f_s().set_bit().duty().clear_bit().ccr().bits(ccr as u16)
-                });
-            } else {
-                let ccr = clock / (speed.0 * 25);
-                let ccr = if ccr < 1 { 1 } else { ccr };
-
-                // Set clock to fast mode with appropriate parameters for selected speed (16:9 duty cycle)
-                self.i2c.ccr.write(|w| unsafe {
-                    w.f_s().set_bit().duty().set_bit().ccr().bits(ccr as u16)
+                    w.f_s()
+                        .clear_bit()
+                        .duty()
+                        .clear_bit()
+                        .ccr()
+                        .bits(ccr as u16)
                 });
             }
+            Mode::Fast {
+                frequency,
+                duty_cycle,
+            } => match duty_cycle {
+                DutyCycle::Ratio2to1 => {
+                    let ccr = (clock / (frequency.0 * 3)).max(1);
+
+                    // Set clock to fast mode with appropriate parameters for selected speed (2:1 duty cycle)
+                    self.i2c.ccr.write(|w| unsafe {
+                        w.f_s().set_bit().duty().clear_bit().ccr().bits(ccr as u16)
+                    });
+                }
+                DutyCycle::Ratio16to9 => {
+                    let ccr = (clock / (frequency.0 * 25)).max(1);
+
+                    // Set clock to fast mode with appropriate parameters for selected speed (16:9 duty cycle)
+                    self.i2c.ccr.write(|w| unsafe {
+                        w.f_s().set_bit().duty().set_bit().ccr().bits(ccr as u16)
+                    });
+                }
+            },
         }
 
         // Enable the I2C processing
@@ -228,16 +265,13 @@ where
             return Err(Error::ARBITRATION);
         }
 
+        // The errata indicates that BERR may be incorrectly detected. It recommends ignoring and
+        // clearing the BERR bit instead.
         if sr1.berr().bit_is_set() {
             self.i2c.sr1.modify(|_, w| w.berr().clear_bit());
-            return Err(Error::BUS);
         }
 
         Ok(sr1)
-    }
-
-    pub fn release(self) -> (I2C, PINS) {
-        (self.i2c, self.pins)
     }
 }
 
@@ -251,7 +285,7 @@ trait I2cCommon {
 
 impl<I2C, PINS> I2cCommon for I2c<I2C, PINS>
 where
-    I2C: Deref<Target = i2c1::RegisterBlock>,
+    I2C: Instance,
 {
     fn write_bytes(&mut self, addr: u8, bytes: &[u8]) -> Result<(), Error> {
         // Send a START condition
@@ -328,7 +362,7 @@ where
 
 impl<I2C, PINS> WriteRead for I2c<I2C, PINS>
 where
-    I2C: Deref<Target = i2c1::RegisterBlock>,
+    I2C: Instance,
 {
     type Error = Error;
 
@@ -342,7 +376,7 @@ where
 
 impl<I2C, PINS> Write for I2c<I2C, PINS>
 where
-    I2C: Deref<Target = i2c1::RegisterBlock>,
+    I2C: Instance,
 {
     type Error = Error;
 
@@ -362,7 +396,7 @@ where
 
 impl<I2C, PINS> Read for I2c<I2C, PINS>
 where
-    I2C: Deref<Target = i2c1::RegisterBlock>,
+    I2C: Instance,
 {
     type Error = Error;
 

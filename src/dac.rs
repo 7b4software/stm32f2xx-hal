@@ -3,15 +3,14 @@
 //! Currently only supports writing to the DR of the DAC,
 //! just a basic one-shot conversion.
 #![deny(unused_imports)]
-use core::mem;
 
 use crate::{
-    bb,
     gpio::{
         gpioa::{PA4, PA5},
         Analog,
     },
     pac::{DAC, RCC},
+    rcc::{Enable, Reset},
 };
 
 pub struct C1;
@@ -28,18 +27,29 @@ pub trait DacPin {
 
 pub trait Pins<DAC> {
     type Output;
+    #[doc(hidden)]
+    fn init() -> Self::Output;
 }
 
 impl Pins<DAC> for PA4<Analog> {
     type Output = C1;
+    fn init() -> Self::Output {
+        C1
+    }
 }
 
 impl Pins<DAC> for PA5<Analog> {
     type Output = C2;
+    fn init() -> Self::Output {
+        C2
+    }
 }
 
 impl Pins<DAC> for (PA4<Analog>, PA5<Analog>) {
     type Output = (C1, C2);
+    fn init() -> Self::Output {
+        (C1, C2)
+    }
 }
 
 pub fn dac<PINS>(_dac: DAC, _pins: PINS) -> PINS::Output
@@ -47,19 +57,14 @@ where
     PINS: Pins<DAC>,
 {
     unsafe {
-        const EN_BIT: u8 = 29;
-        const RESET_BIT: u8 = 29;
-
         // NOTE(unsafe) this reference will only be used for atomic writes with no side effects.
         let rcc = &(*RCC::ptr());
 
         // Enable and reset clock.
-        bb::set(&rcc.apb1enr, EN_BIT);
-        bb::set(&rcc.apb1rstr, RESET_BIT);
-        bb::clear(&rcc.apb1rstr, RESET_BIT);
+        DAC::enable(rcc);
+        DAC::reset(rcc);
 
-        // NOTE(unsafe) ZST, doesn't need initialization.
-        mem::MaybeUninit::uninit().assume_init()
+        PINS::init()
     }
 }
 

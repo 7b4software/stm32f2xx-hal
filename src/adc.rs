@@ -1,14 +1,16 @@
 //! Analog to digital converter configuration.
-//! According to CubeMx, all STM32F4 chips use the same ADC IP so this should be correct for all variants.
+//! According to CubeMx, all STM32F2 chips use the same ADC IP so this should be correct for all variants.
 
 #![deny(missing_docs)]
 
 /*
     Currently unused but this is the formula for using temperature calibration:
-    Temperature in °C = (110-30)/(VtempCal110::get().read()-VtempCal30::get().read()) * (adc_sample - VtempCal30::get().read()) + 30
+    Temperature in °C = (110-30) * (adc_sample - VtempCal30::get().read()) / (VtempCal110::get().read()-VtempCal30::get().read()) + 30
 */
 
-use crate::{bb, gpio::*, pac, signature::VrefCal, signature::VDDA_CALIB};
+use crate::dma::traits::PeriAddress;
+use crate::rcc::{Enable, Reset};
+use crate::{gpio::*, pac, signature::VrefCal, signature::VDDA_CALIB};
 use core::fmt;
 use embedded_hal::adc::{Channel, OneShot};
 
@@ -381,6 +383,7 @@ pub mod config {
         pub(crate) dma: Dma,
         pub(crate) end_of_conversion_interrupt: Eoc,
         pub(crate) default_sample_time: SampleTime,
+        pub(crate) vdda: Option<u32>,
     }
 
     impl AdcConfig {
@@ -433,6 +436,15 @@ pub mod config {
             self.default_sample_time = default_sample_time;
             self
         }
+
+        /// Specify the reference voltage for the ADC.
+        ///
+        /// # Args
+        /// * `vdda_mv` - The ADC reference voltage in millivolts.
+        pub fn reference_voltage(mut self, vdda_mv: u32) -> Self {
+            self.vdda = Some(vdda_mv);
+            self
+        }
     }
 
     impl Default for AdcConfig {
@@ -447,6 +459,7 @@ pub mod config {
                 dma: Dma::Disabled,
                 end_of_conversion_interrupt: Eoc::Disabled,
                 default_sample_time: SampleTime::Cycles_480,
+                vdda: None,
             }
         }
     }
@@ -469,7 +482,7 @@ pub mod config {
 /// # Examples
 /// ## One-shot conversion
 /// ```
-/// use stm32f4xx_hal::{
+/// use stm32f2xx_hal::{
 ///   gpio::gpioa,
 ///   adc::{
 ///     Adc,
@@ -487,7 +500,7 @@ pub mod config {
 ///
 /// ## Sequence conversion
 /// ```
-/// use stm32f4xx_hal::{
+/// use stm32f2xx_hal::{
 ///   gpio::gpioa,
 ///   adc::{
 ///     Adc,
@@ -503,7 +516,7 @@ pub mod config {
 /// let config = AdcConfig::default()
 ///     //We'll either need DMA or an interrupt per conversion to convert
 ///     //multiple values in a sequence
-///     .end_of_conversion_interrupt(Eoc::Conversion);
+///     .end_of_conversion_interrupt(Eoc::Conversion)
 ///     //Scan mode is also required to convert a sequence
 ///     .scan(Scan::Enabled)
 ///     //And since we're looking for one interrupt per conversion the
@@ -606,25 +619,97 @@ impl<ADC> fmt::Debug for Adc<ADC> {
 }
 
 macro_rules! adc {
+    // Note that only ADC1 supports measurement of VREF, VBAT, and the internal temperature sensor.
+    (additionals: ADC1 => ($common_type:ident)) => {
+        /// Calculates the system VDDA by sampling the internal VREF channel and comparing
+        /// the result with the value stored at the factory.
+        pub fn calibrate(&mut self) {
+            self.enable();
+
+            let vref_en = self.temperature_and_vref_enabled();
+            if !vref_en {
+                self.enable_temperature_and_vref();
+            }
+
+            let vref_cal = VrefCal::get().read();
+            let vref_samp = self.read(&mut Vref).unwrap(); //This can't actually fail, it's just in a result to satisfy hal trait
+
+            self.calibrated_vdda = (VDDA_CALIB * u32::from(vref_cal)) / u32::from(vref_samp);
+            if !vref_en {
+                self.disable_temperature_and_vref();
+            }
+        }
+
+        /// Enables the vbat internal channel
+        pub fn enable_vbat(&self) {
+            unsafe {
+                let common = &(*pac::$common_type::ptr());
+                common.ccr.modify(|_, w| w.vbate().set_bit());
+            }
+        }
+
+        /// Enables the vbat internal channel
+        pub fn disable_vbat(&self) {
+            unsafe {
+                let common = &(*pac::$common_type::ptr());
+                common.ccr.modify(|_, w| w.vbate().clear_bit());
+            }
+        }
+
+        /// Enables the temp and vref internal channels.
+        /// They can't work while vbat is also enabled so this method also disables vbat.
+        pub fn enable_temperature_and_vref(&mut self) {
+            //VBAT prevents TS and VREF from being sampled
+            self.disable_vbat();
+            unsafe {
+                let common = &(*pac::$common_type::ptr());
+                common.ccr.modify(|_, w| w.tsvrefe().set_bit());
+            }
+        }
+
+        /// Disables the temp and vref internal channels
+        pub fn disable_temperature_and_vref(&mut self) {
+            unsafe {
+                let common = &(*pac::$common_type::ptr());
+                common.ccr.modify(|_, w| w.tsvrefe().clear_bit());
+            }
+        }
+
+        /// Returns if the temp and vref internal channels are enabled
+        pub fn temperature_and_vref_enabled(&mut self) -> bool {
+            unsafe {
+                let common = &(*pac::$common_type::ptr());
+                common.ccr.read().tsvrefe().bit_is_set()
+            }
+        }
+    };
+
+    // Provide a stub implementation for ADCs that do not have a means of sampling VREF.
+    (additionals: $adc_type:ident => ($common_type:ident)) => {
+        fn calibrate(&mut self) {}
+    };
+
     ($($adc_type:ident => ($constructor_fn_name:ident, $common_type:ident, $en_bit: expr)),+ $(,)*) => {
         $(
             impl Adc<pac::$adc_type> {
+
+                adc!(additionals: $adc_type => ($common_type));
+
                 /// Enables the ADC clock, resets the peripheral (optionally), runs calibration and applies the supplied config
                 /// # Arguments
                 /// * `reset` - should a reset be performed. This is provided because on some devices multiple ADCs share the same common reset
                 pub fn $constructor_fn_name(adc: pac::$adc_type, reset: bool, config: config::AdcConfig) -> Adc<pac::$adc_type> {
                     unsafe {
                         // All ADCs share the same reset interface.
-                        const RESET_BIT: u8 = 8;
                         // NOTE(unsafe) this reference will only be used for atomic writes with no side effects.
                         let rcc = &(*pac::RCC::ptr());
 
                         //Enable the clock
-                        bb::set(&rcc.apb2enr, $en_bit);
+                        pac::$adc_type::enable(rcc);
+
                         if reset {
                             //Reset the peripheral(s)
-                            bb::set(&rcc.apb2rstr, RESET_BIT);
-                            bb::clear(&rcc.apb2rstr, RESET_BIT);
+                            pac::$adc_type::reset(rcc);
                         }
                     }
 
@@ -642,6 +727,11 @@ macro_rules! adc {
                     s.enable();
                     s.calibrate();
 
+                    // If the user specified a VDDA, use that over the internally determined value.
+                    if let Some(vdda) = s.config.vdda {
+                        s.calibrated_vdda = vdda;
+                    }
+
                     s
                 }
 
@@ -656,67 +746,9 @@ macro_rules! adc {
                     self.set_dma(config.dma);
                     self.set_end_of_conversion_interrupt(config.end_of_conversion_interrupt);
                     self.set_default_sample_time(config.default_sample_time);
-                }
 
-                /// Calculates the system VDDA by sampling the internal VREF channel and comparing
-                /// the result with the value stored at the factory.
-                pub fn calibrate(&mut self) {
-                    self.enable();
-
-                    let vref_en = self.temperature_and_vref_enabled();
-                    if !vref_en {
-                        self.enable_temperature_and_vref();
-                    }
-
-                    let vref_cal = VrefCal::get().read();
-                    let vref_samp = self.read(&mut Vref).unwrap(); //This can't actually fail, it's just in a result to satisfy hal trait
-
-                    self.calibrated_vdda = (VDDA_CALIB * u32::from(vref_cal)) / u32::from(vref_samp);
-                    if !vref_en {
-                        self.disable_temperature_and_vref();
-                    }
-                }
-
-                /// Enables the vbat internal channel
-                pub fn enable_vbat(&self) {
-                    unsafe {
-                        let common = &(*pac::$common_type::ptr());
-                        common.ccr.modify(|_, w| w.vbate().set_bit());
-                    }
-                }
-
-                /// Enables the vbat internal channel
-                pub fn disable_vbat(&self) {
-                    unsafe {
-                        let common = &(*pac::$common_type::ptr());
-                        common.ccr.modify(|_, w| w.vbate().clear_bit());
-                    }
-                }
-
-                /// Enables the temp and vref internal channels.
-                /// They can't work while vbat is also enabled so this method also disables vbat.
-                pub fn enable_temperature_and_vref(&mut self) {
-                    //VBAT prevents TS and VREF from being sampled
-                    self.disable_vbat();
-                    unsafe {
-                        let common = &(*pac::$common_type::ptr());
-                        common.ccr.modify(|_, w| w.tsvrefe().set_bit());
-                    }
-                }
-
-                /// Disables the temp and vref internal channels
-                pub fn disable_temperature_and_vref(&mut self) {
-                    unsafe {
-                        let common = &(*pac::$common_type::ptr());
-                        common.ccr.modify(|_, w| w.tsvrefe().clear_bit());
-                    }
-                }
-
-                /// Returns if the temp and vref internal channels are enabled
-                pub fn temperature_and_vref_enabled(&mut self) -> bool {
-                    unsafe {
-                        let common = &(*pac::$common_type::ptr());
-                        common.ccr.read().tsvrefe().bit_is_set()
+                    if let Some(vdda) = config.vdda {
+                        self.calibrated_vdda = vdda;
                     }
                 }
 
@@ -995,20 +1027,23 @@ macro_rules! adc {
                     Ok(sample)
                 }
             }
+
+            unsafe impl PeriAddress for Adc<pac::$adc_type> {
+                #[inline(always)]
+                fn address(&self) -> u32 {
+                    &self.adc_reg.dr as *const _ as u32
+                }
+
+                type MemSize = u16;
+            }
         )+
     };
 }
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
 adc!(ADC1 => (adc1, ADC_COMMON, 8));
-
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
 adc!(ADC2 => (adc2, ADC_COMMON, 9));
-
-#[cfg(any(feature = "stm32f205", feature = "stm32f215",))]
 adc!(ADC3 => (adc3, ADC_COMMON, 10));
 
-#[cfg(any(feature = "stm32f205", feature = "stm32f215"))]
 adc_pins!(
     gpioa::PA0<Analog> => (ADC1, 0),
     gpioa::PA0<Analog> => (ADC2, 0),
@@ -1043,9 +1078,17 @@ adc_pins!(
     gpioc::PC3<Analog> => (ADC1, 13),
     gpioc::PC3<Analog> => (ADC2, 13),
     gpioc::PC3<Analog> => (ADC3, 13),
-    Temperature => (ADC1, 18),
-    Temperature => (ADC2, 18),
-    Temperature => (ADC3, 18),
+    gpiof::PF10<Analog> => (ADC3, 8),
+    gpiof::PF3<Analog> => (ADC3, 9),
+    gpiof::PF4<Analog> => (ADC3, 14),
+    gpiof::PF5<Analog> => (ADC3, 15),
+    gpiof::PF6<Analog> => (ADC3, 4),
+    gpiof::PF7<Analog> => (ADC3, 5),
+    gpiof::PF8<Analog> => (ADC3, 6),
+    gpiof::PF9<Analog> => (ADC3, 7),
+    Temperature => (ADC1, 16),
+    Temperature => (ADC2, 16),
+    Temperature => (ADC3, 16),
     Vbat => (ADC1, 18),
     Vbat => (ADC2, 18),
     Vbat => (ADC3, 18),

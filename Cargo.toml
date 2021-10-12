@@ -1,7 +1,7 @@
 [package]
 edition = "2018"
 
-authors = ["Mikael <mike7b4@pm.me>"]
+authors = ["Mikael <mike7b4@protonmail.com>"]
 categories = [
     "embedded",
     "hardware-support",
@@ -19,56 +19,97 @@ license = "0BSD"
 name = "stm32f2xx-hal"
 readme = "README.md"
 repository = "https://github.com/stm32-rs/stm32f2xx-hal"
-version = "0.1.0"
+version = "0.10.0"
 
 [package.metadata.docs.rs]
-features = ["stm32f205", "rt", "usb_fs"]
-targets = ["thumbv7em-none-eabihf"]
+features = ["stm32f205", "rt", "usb_fs", "can", "i2s", "fsmc_lcd"]
+targets = ["thumbv7m-none-eabi"]
 
 [dependencies]
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
 nb = "1"
 rand_core = "0.6"
+rtcc = "0.2"
 stm32f2 = "0.14"
-synopsys-usb-otg = { version = "0.2", features = ["cortex-m"], optional = true }
-embedded-dma = "0.1"
+synopsys-usb-otg = { version = "0.2.0", features = ["cortex-m"], optional = true }
+sdio-host = { version = "0.5.0", optional = true }
+embedded-dma = "0.1.2"
+bare-metal = { version = "1" }
+cast = { default-features = false, version = "0.3.0" }
+void = { default-features = false, version = "1.0.2" }
+embedded-hal = { features = ["unproven"], version = "0.2.6" }
 
-[dependencies.bare-metal]
-version = "1"
-# features = ["const-fn"]
-
-[dependencies.cast]
-default-features = false
-version = "0.2.2"
-
-[dependencies.void]
-default-features = false
-version = "1.0.2"
-
-[dependencies.embedded-hal]
-features = ["unproven"]
-version = "0.2.3"
+[dependencies.stm32_i2s_v12x]
+version = "0.2.0"
+optional = true
 
 [dev-dependencies]
 panic-semihosting = "0.5.3"
 cortex-m-semihosting = "0.3.3"
-arrayvec = { version = "0.5.1", default-features = false }
+heapless = "0.7.5"
 panic-halt = "0.2.0"
-usb-device = "0.2.7"
-usbd-serial = "0.1"
-micromath = "1.0.0"
+embedded-graphics = "0.7.1"
+usb-device = "0.2.5"
+usbd-serial = "0.1.0"
+micromath = "2"
+cortex-m-rtic = "0.6.0-rc.2"
+dwt-systick-monotonic = "0.1.0-alpha.3"
+rtt-target = { version = "0.3.1", features = ["cortex-m"] }
 
 [features]
 device-selected = []
 rt = ["stm32f2/rt"]
-stm32f205 = ["stm32f2/stm32f215", "device-selected"]
-stm32f215 = ["stm32f2/stm32f215", "device-selected"]
-stm32f207 = ["stm32f2/stm32f217", "device-selected"]
-stm32f217 = ["stm32f2/stm32f217", "device-selected"]
-
+# Note: stm32f4 has only one feature for some very similar device families,
+stm32f205 = ["stm32f2/stm32f215", "device-selected",
+    "gpiod",
+    "gpioe",
+    "gpiof",
+    "gpiog",
+    "gpioh",
+    "gpioi",
+    "otg-fs",
+    "otg-hs",
+    "rng",
+    "sdio",
+]
 usb_fs = ["synopsys-usb-otg", "synopsys-usb-otg/fs"]
 usb_hs = ["synopsys-usb-otg", "synopsys-usb-otg/hs"]
+
+i2s = ["stm32_i2s_v12x"]
+
+adc2 = []
+adc3 = []
+can1 = []
+can2 = []
+dac = []
+fmc = []
+fsmc = []
+fmpi2c1 = []
+gpiod = []
+gpioe = []
+gpiof = []
+gpiog = []
+gpioh = []
+gpioi = []
+i2c3 = []
+otg-fs = []
+otg-hs = []
+rng = []
+sdio = []
+spi3 = []
+spi4 = []
+spi5 = []
+spi6 = []
+tim2 = []
+tim8 = []
+usart3 = []
+uart4 = []
+uart5 = []
+uart7 = []
+uart8 = []
+uart9 = []
+uart10 = []
 
 [profile.dev]
 debug = true
@@ -80,13 +121,33 @@ lto = true
 opt-level = "s"
 
 [[example]]
-name = "usb_serial"
-required-features = ["rt", "usb_fs"]
+name = "blinky-timer-irq"
+required-features = ["rt", "tim2"] # stm32f411
 
 [[example]]
-name = "delay-blinky"
-required-features = ["rt"]
+name = "usb_serial"
+required-features = ["otg-fs", "usb_fs"] # stm32f401
+
+[[example]]
+name = "sd"
+required-features = ["gpiod", "sdio", "sdio-host"] # stm32f405
+
+[[example]]
+name = "delay-syst-blinky"
+required-features = ["device-selected"] # stm32f411
+
+[[example]]
+name = "delay-timer-blinky"
+required-features = ["device-selected"] # stm32f411
 
 [[example]]
 name = "dwt-blinky"
-required-features = ["rt"]
+required-features = ["gpiog"] # "stm32f429"
+
+[[example]]
+name = "ssd1306-image"
+required-features = ["device-selected"] # stm32f411
+
+[[example]]
+name = "rng-display"
+required-features = ["rng"] # stm32f407
