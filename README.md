@@ -1,4 +1,4 @@
-stm32f4xx-hal
+stm32f2xx-hal
 =============
 
 [![Crates.io](https://img.shields.io/crates/d/stm32f4xx-hal.svg)](https://crates.io/crates/stm32f2xx-hal)
@@ -17,6 +17,7 @@ support crates. Currently supported configurations are:
 * stm32f217
 
 This crate is 99% based on stm32f4xx-hal with slightly modifications to make it work on stm32f2xx family of CPU's.
+Since all stm32f2xx has almost similar settings most of the stuff is compatible.
 
 Collaboration on this crate is highly welcome as are pull requests!
 
@@ -24,12 +25,18 @@ Collaboration on this crate is highly welcome as are pull requests!
 [stm32f2xx-hal]: https://github.com/stm32-rs/stm32f4xx-hal
 [embedded-hal]: https://github.com/rust-embedded/embedded-hal
 
+
+Known issues
+------
+
+Please look at the TODO.md!!!
+
 Setting up your project
 -------
 
 Check if the BSP for your board exists in the
 [stm32-rs](https://github.com/stm32-rs) page.
-If it exists, the `stm32f4xx-hal` crate should be already included, so you can
+If it exists, the `stm32f2xx-hal` crate should be already included, so you can
 use the bsp as BSP for your project.
 
 Otherwise, create a new Rust project as you usually do with `cargo init`. The
@@ -48,14 +55,14 @@ cortex-m-rt = "0.7"
 # Panic behaviour, see https://crates.io/keywords/panic-impl for alternatives
 panic-halt = "0.2"
 
-[dependencies.stm32f4xx-hal]
+[dependencies.stm32f2xx-hal]
 version = "0.10"
 features = ["rt", "stm32f205"] # replace the model of your microcontroller here
 ```
 
 We also need to tell Rust how to link our executable and how to lay out the
 result in memory. To accomplish all this, copy [.cargo/config](.cargo/config)
-and [memory.x](memory.x) from the `stm32f4xx-hal` repository to your project and make sure the sizes match up with the datasheet. Also note that there might be different kinds of memory which are not equal; to be on the safe side only specify the size of the first block at the specified address.
+and [memory.x](memory.x) from the `stm32f2xx-hal` repository to your project and make sure the sizes match up with the datasheet. Also note that there might be different kinds of memory which are not equal; to be on the safe side only specify the size of the first block at the specified address.
 
 License
 -------
