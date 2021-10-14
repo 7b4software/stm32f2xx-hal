@@ -8,8 +8,8 @@ Most of the pinouts should be compatible with stm32f207 and stm32f215.
 ## TBD
 
  - [ ] Fix warnings
- - [ ] Fix RCC
- - [ ] Fix examples
- - [ ] Support more than stmf205
- - [ ] Update gpio to use the new gpio API
+ - [ ] Fix RCC (some is currently hardcoded)
+ - [ ] Fix all examples
+ - [x] Support LAN on stm32f2x7
+ - [x] Update gpio to use the new gpio API
 

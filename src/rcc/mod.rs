@@ -380,9 +380,6 @@ impl CFGR {
     }
 
     fn freeze_internal(self, unchecked: bool) -> Clocks {
-        let rcc = unsafe { &*RCC::ptr() };
-
-        //let (use_pll, sysclk_on_pll, sysclk, pll48clk) = self.pll_setup();
         let pllsrcclk = self.hse.unwrap_or(HSI);
         let sysclk = self.sysclk.unwrap_or(pllsrcclk);
         let sysclk_on_pll = sysclk != pllsrcclk;
@@ -449,6 +446,7 @@ impl CFGR {
 
         Self::flash_setup(sysclk);
 
+        let rcc = unsafe { &*RCC::ptr() };
         if self.hse.is_some() {
             // enable HSE and wait for it to be ready
             rcc.cr.modify(|_, w| {
